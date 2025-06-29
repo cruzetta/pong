@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong (Atari, 1972)</title>
+    <style>
+        /* Estilos gerais para o corpo da página */
+        body {
+            margin: 0;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #fff;
+            font-family: 'Press Start 2P', monospace; /* Fonte estilo pixel art */
+            overflow: hidden; /* Evita barras de rolagem */
+        }
+
+        /* Contêiner principal do jogo */
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Estilo para a tela do jogo (canvas) */
+        canvas {
+            background-color: #000;
+            border: 4px solid #fff;
+            /* Garante que o canvas mantenha a proporção e não ultrapasse a tela */
+            max-width: 100vw;
+            max-height: 85vh; /* Deixa espaço para os controles abaixo */
+            aspect-ratio: 4 / 3;
+        }
+
+        /* Contêiner para os controles (botões) */
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+        }
+
+        /* Estilo para os botões */
+        button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            color: #000;
+            background-color: #fff;
+            border: 2px solid #fff;
+            cursor: pointer;
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        button:disabled {
+            background-color: #555;
+            color: #888;
+            cursor: not-allowed;
+        }
+        
+        #restartButton {
+            display: none; /* Oculto por padrão */
+        }
+    </style>
+    <!-- Importa a fonte estilo arcade do Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="game-container">
+        <!-- O elemento canvas é onde o jogo será desenhado -->
+        <canvas id="pongCanvas"></canvas>
+        <div class="controls">
+            <button id="pauseButton">Pausar</button>
+            <button id="restartButton">Jogar Novamente</button>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURAÇÃO INICIAL ---
+        const canvas = document.getElementById('pongCanvas');
+        const context = canvas.getContext('2d');
+        const pauseButton = document.getElementById('pauseButton');
+        const restartButton = document.getElementById('restartButton');
+
+        const WINNING_SCORE = 10;
+        let gameOver = false;
+        let isPaused = false;
+
+        // --- OBJETOS DO JOGO ---
+        const ball = {
+            x: 0, y: 0,
+            width: 15, height: 15,
+            speedX: 6, speedY: 6,
+            color: '#fff'
+        };
+
+        const player = {
+            x: 0, y: 0,
+            width: 15, height: 100,
+            color: '#fff',
+            score: 0
+        };
+
+        const computer = {
+            x: 0, y: 0,
+            width: 15, height: 100,
+            color: '#fff',
+            score: 0
+        };
+
+        const net = {
+            x: 0, y: 0,
+            width: 4, height: 15,
+            color: '#fff',
+            gap: 15
+        };
+
+        // --- FUNÇÕES DE DESENHO ---
+
+        function drawRect(x, y, w, h, color) {
+            context.fillStyle = color;
+            context.fillRect(x, y, w, h);
+        }
+
+        function drawText(text, x, y, size, color, align = 'left') {
+            context.fillStyle = color;
+            context.font = `${size}px 'Press Start 2P'`;
+            context.textAlign = align;
+            context.fillText(text, x, y);
+            context.textAlign = 'left'; // Reseta o alinhamento
+        }
+        
+        // --- LÓGICA DO JOGO ---
+
+        // Configura as posições e tamanhos iniciais com base no tamanho do canvas
+        function initializePositions(resetScores = false) {
+            player.x = 10;
+            player.y = (canvas.height - player.height) / 2;
+            
+            // CORREÇÃO: Posição do computador corrigida para usar computer.width
+            computer.x = canvas.width - computer.width - 10;
+            computer.y = (canvas.height - computer.height) / 2;
+
+            net.x = (canvas.width - net.width) / 2;
+            
+            // Só reseta a bola, não a pontuação, a menos que seja um novo jogo
+            if (resetScores) {
+                player.score = 0;
+                computer.score = 0;
+            }
+
+            resetBall();
+        }
+        
+        // Define as dimensões do canvas e reposiciona os elementos
+        function resizeAndPosition() {
+            const container = document.getElementById('game-container');
+            const aspectRatio = 4 / 3;
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight * 0.85; // Usa 85% da altura para dar espaço aos botões
+
+            if (containerWidth / containerHeight > aspectRatio) {
+                canvas.height = containerHeight;
+                canvas.width = containerHeight * aspectRatio;
+            } else {
+                canvas.width = containerWidth;
+                canvas.height = containerWidth / aspectRatio;
+            }
+            // CORREÇÃO: Reposiciona todos os elementos após redimensionar
+            initializePositions();
+            renderAll(); 
+        }
+
+        function resetBall() {
+            ball.x = canvas.width / 2 - ball.width / 2;
+            ball.y = canvas.height / 2 - ball.height / 2;
+            
+            if (ball.speedX === 0) { // Na primeira inicialização
+                 ball.speedX = 6;
+            } else { // Inverte a direção horizontal após um ponto
+                ball.speedX = -ball.speedX;
+            }
+
+            ball.speedY = Math.random() > 0.5 ? 6 : -6;
+        }
+
+        function collision(b, p) { // b: bola, p: raquete
+            return b.x < p.x + p.width &&
+                   b.x + b.width > p.x &&
+                   b.y < p.y + p.height &&
+                   b.y + b.height > p.y;
+        }
+
+        function update() {
+            if (gameOver || isPaused) return;
+
+            ball.x += ball.speedX;
+            ball.y += ball.speedY;
+
+            let computerLevel = 0.085;
+            computer.y += (ball.y - (computer.y + computer.height / 2)) * computerLevel;
+
+            if (ball.y < 0 || ball.y + ball.height > canvas.height) {
+                ball.speedY = -ball.speedY;
+            }
+
+            let paddle = (ball.x < canvas.width / 2) ? player : computer;
+
+            if (collision(ball, paddle)) {
+                ball.speedX = -ball.speedX;
+                let collidePoint = (ball.y + ball.height / 2) - (paddle.y + paddle.height / 2);
+                collidePoint = collidePoint / (paddle.height / 2);
+                ball.speedY = collidePoint * 7;
+            }
+
+            if (ball.x < 0) {
+                computer.score++;
+                resetBall();
+            } else if (ball.x + ball.width > canvas.width) {
+                player.score++;
+                resetBall();
+            }
+
+            if (player.score >= WINNING_SCORE || computer.score >= WINNING_SCORE) {
+                gameOver = true;
+                pauseButton.disabled = true;
+                restartButton.style.display = 'block';
+            }
+        }
+
+        function renderAll() {
+            drawRect(0, 0, canvas.width, canvas.height, '#000');
+            
+            if (gameOver) {
+                let message = (player.score > computer.score) ? "VOCÊ VENCEU!" : "GAME OVER";
+                drawText(message, canvas.width / 2, canvas.height / 2, 40, '#fff', 'center');
+                drawText(player.score, canvas.width / 4, canvas.height / 5, 45, '#fff');
+                drawText(computer.score, 3 * canvas.width / 4, canvas.height / 5, 45, '#fff');
+                return;
+            }
+            
+            for (let i = 0; i <= canvas.height; i += (net.height + net.gap)) {
+                drawRect(net.x, i, net.width, net.height, net.color);
+            }
+
+            drawText(player.score, canvas.width / 4, canvas.height / 5, 45, '#fff');
+            drawText(computer.score, 3 * canvas.width / 4, canvas.height / 5, 45, '#fff');
+
+            drawRect(player.x, player.y, player.width, player.height, player.color);
+            drawRect(computer.x, computer.y, computer.width, computer.height, computer.color);
+            drawRect(ball.x, ball.y, ball.width, ball.height, ball.color);
+
+            if (isPaused) {
+                drawText("PAUSADO", canvas.width / 2, canvas.height / 2, 40, '#fff', 'center');
+            }
+        }
+
+        function gameLoop() {
+            update();
+            renderAll();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- CONTROLES E EVENTOS ---
+
+        canvas.addEventListener('mousemove', (event) => {
+            let rect = canvas.getBoundingClientRect();
+            player.y = event.clientY - rect.top - player.height / 2;
+
+            if (player.y < 0) player.y = 0;
+            if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+        });
+        
+        pauseButton.addEventListener('click', () => {
+            if (gameOver) return;
+            isPaused = !isPaused;
+            pauseButton.textContent = isPaused ? 'Continuar' : 'Pausar';
+        });
+
+        restartButton.addEventListener('click', () => {
+            gameOver = false;
+            isPaused = false;
+            restartButton.style.display = 'none';
+            pauseButton.disabled = false;
+            pauseButton.textContent = 'Pausar';
+            initializePositions(true); // Reinicia o jogo e a pontuação
+        });
+        
+        window.addEventListener('resize', resizeAndPosition);
+
+        // --- INICIALIZAÇÃO ---
+        resizeAndPosition(); // Uma função para configurar tudo no início
+        requestAnimationFrame(gameLoop);
+
+    </script>
+</body>
+</html>
