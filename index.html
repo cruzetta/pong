@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Pong (Atari, 1972)</title>
     <style>
         /* Estilos gerais para o corpo da página */
@@ -36,8 +36,8 @@
 
         /* Estilo para a tela de início */
         #start-screen h1 {
-            font-size: 2rem;
-            max-width: 80%;
+            font-size: 1.5rem; /* Ajustado para melhor visualização em mobile */
+            max-width: 90%;
             line-height: 1.5;
             margin-bottom: 40px;
         }
@@ -47,21 +47,28 @@
             background-color: #000;
             border: 4px solid #fff;
             max-width: 100vw;
-            max-height: 85vh; /* Deixa espaço para os controles abaixo */
+            max-height: 80vh; /* Deixa mais espaço para os controles */
             aspect-ratio: 4 / 3;
         }
 
-        /* Contêiner para os controles (botões) */
+        /* Contêiner para os controles (botões e texto) */
         .controls {
-            margin-top: 20px;
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .buttons {
             display: flex;
             gap: 20px;
         }
 
         /* Estilo para os botões */
         button {
-            padding: 15px 30px;
-            font-size: 1.2rem;
+            padding: 10px 20px;
+            font-size: 1rem;
             color: #000;
             background-color: #fff;
             border: 2px solid #fff;
@@ -78,6 +85,10 @@
         #restartButton {
             display: none; /* Oculto por padrão */
         }
+
+        #controls-info {
+            font-size: 0.8rem;
+        }
     </style>
     <!-- Importa a fonte estilo arcade do Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -93,8 +104,11 @@
         <!-- O elemento canvas é onde o jogo será desenhado -->
         <canvas id="pongCanvas"></canvas>
         <div class="controls">
-            <button id="pauseButton">Pausar</button>
-            <button id="restartButton">Jogar Novamente</button>
+            <p id="controls-info"></p>
+            <div class="buttons">
+                <button id="pauseButton">Pausar</button>
+                <button id="restartButton">Jogar Novamente</button>
+            </div>
         </div>
     </div>
 
@@ -107,6 +121,7 @@
         const context = canvas.getContext('2d');
         const pauseButton = document.getElementById('pauseButton');
         const restartButton = document.getElementById('restartButton');
+        const controlsInfo = document.getElementById('controls-info');
 
         // --- ESTADO DO JOGO ---
         const WINNING_SCORE = 10;
@@ -164,7 +179,7 @@
         function resizeAndPosition() {
             const aspectRatio = 4 / 3;
             const containerWidth = gameContainer.clientWidth;
-            const containerHeight = gameContainer.clientHeight * 0.85;
+            const containerHeight = gameContainer.clientHeight * 0.80; // Ajuste para mobile
 
             if (containerWidth / containerHeight > aspectRatio) {
                 canvas.height = containerHeight;
@@ -236,7 +251,7 @@
             
             if (gameOver) {
                 let message = (player.score > computer.score) ? "VOCÊ VENCEU!" : "GAME OVER";
-                drawText(message, canvas.width / 2, canvas.height / 2, 40, '#fff', 'center');
+                drawText(message, canvas.width / 2, canvas.height / 2, 30, '#fff', 'center');
                 drawText(player.score, canvas.width / 4, canvas.height / 5, 45, '#fff');
                 drawText(computer.score, 3 * canvas.width / 4, canvas.height / 5, 45, '#fff');
                 return;
@@ -262,6 +277,42 @@
             renderAll();
             requestAnimationFrame(gameLoop);
         }
+        
+        // --- FUNÇÃO DE DETECÇÃO DE CONTROLES ---
+        function setupControls() {
+            function isMobile() {
+                try { // try/catch para navegadores mais antigos
+                    document.createEvent("TouchEvent");
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            if (isMobile()) {
+                controlsInfo.textContent = "Arraste na tela para mover";
+                // Adiciona listener para toque
+                canvas.addEventListener('touchmove', (event) => {
+                    event.preventDefault(); // Impede o scroll da página
+                    let rect = canvas.getBoundingClientRect();
+                    let touch = event.touches[0];
+                    player.y = touch.clientY - rect.top - player.height / 2;
+                    // Mantém a raquete dentro dos limites
+                    if (player.y < 0) player.y = 0;
+                    if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+                }, { passive: false });
+            } else {
+                controlsInfo.textContent = "Mova o mouse para controlar";
+                // Adiciona listener para mouse
+                canvas.addEventListener('mousemove', (event) => {
+                    let rect = canvas.getBoundingClientRect();
+                    player.y = event.clientY - rect.top - player.height / 2;
+                    if (player.y < 0) player.y = 0;
+                    if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+                });
+            }
+        }
+
 
         // --- CONTROLES E EVENTOS ---
 
@@ -270,14 +321,8 @@
             gameContainer.style.display = 'flex';
             gameStarted = true;
             resizeAndPosition();
+            setupControls(); // Configura os controles corretos
             requestAnimationFrame(gameLoop);
-        });
-
-        canvas.addEventListener('mousemove', (event) => {
-            let rect = canvas.getBoundingClientRect();
-            player.y = event.clientY - rect.top - player.height / 2;
-            if (player.y < 0) player.y = 0;
-            if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
         });
         
         pauseButton.addEventListener('click', () => {
