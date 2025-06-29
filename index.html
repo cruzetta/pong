@@ -18,21 +18,34 @@
             overflow: hidden; /* Evita barras de rolagem */
         }
 
-        /* Contêiner principal do jogo */
-        #game-container {
+        /* Contêiner genérico para centralização */
+        .container {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             width: 100%;
             height: 100%;
+            text-align: center;
+        }
+        
+        /* Contêiner do jogo, oculto por padrão */
+        #game-container {
+            display: none;
+        }
+
+        /* Estilo para a tela de início */
+        #start-screen h1 {
+            font-size: 2rem;
+            max-width: 80%;
+            line-height: 1.5;
+            margin-bottom: 40px;
         }
 
         /* Estilo para a tela do jogo (canvas) */
         canvas {
             background-color: #000;
             border: 4px solid #fff;
-            /* Garante que o canvas mantenha a proporção e não ultrapasse a tela */
             max-width: 100vw;
             max-height: 85vh; /* Deixa espaço para os controles abaixo */
             aspect-ratio: 4 / 3;
@@ -47,8 +60,8 @@
 
         /* Estilo para os botões */
         button {
-            padding: 10px 20px;
-            font-size: 1rem;
+            padding: 15px 30px;
+            font-size: 1.2rem;
             color: #000;
             background-color: #fff;
             border: 2px solid #fff;
@@ -70,7 +83,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="game-container">
+    
+    <div id="start-screen" class="container">
+        <h1>Em 1972, um simples ponto mudou tudo.<br><br>O desafio retorna. Você está pronto?</h1>
+        <button id="startButton">Iniciar Jogo</button>
+    </div>
+
+    <div id="game-container" class="container">
         <!-- O elemento canvas é onde o jogo será desenhado -->
         <canvas id="pongCanvas"></canvas>
         <div class="controls">
@@ -80,47 +99,40 @@
     </div>
 
     <script>
-        // --- CONFIGURAÇÃO INICIAL ---
+        // --- ELEMENTOS DO DOM ---
+        const startScreen = document.getElementById('start-screen');
+        const gameContainer = document.getElementById('game-container');
+        const startButton = document.getElementById('startButton');
         const canvas = document.getElementById('pongCanvas');
         const context = canvas.getContext('2d');
         const pauseButton = document.getElementById('pauseButton');
         const restartButton = document.getElementById('restartButton');
 
+        // --- ESTADO DO JOGO ---
         const WINNING_SCORE = 10;
         let gameOver = false;
         let isPaused = false;
+        let gameStarted = false;
 
         // --- OBJETOS DO JOGO ---
         const ball = {
-            x: 0, y: 0,
-            width: 15, height: 15,
-            speedX: 6, speedY: 6,
-            color: '#fff'
+            x: 0, y: 0, width: 15, height: 15,
+            speedX: 6, speedY: 6, color: '#fff'
         };
-
         const player = {
-            x: 0, y: 0,
-            width: 15, height: 100,
-            color: '#fff',
-            score: 0
+            x: 0, y: 0, width: 15, height: 100,
+            color: '#fff', score: 0
         };
-
         const computer = {
-            x: 0, y: 0,
-            width: 15, height: 100,
-            color: '#fff',
-            score: 0
+            x: 0, y: 0, width: 15, height: 100,
+            color: '#fff', score: 0
         };
-
         const net = {
-            x: 0, y: 0,
-            width: 4, height: 15,
-            color: '#fff',
-            gap: 15
+            x: 0, y: 0, width: 4, height: 15,
+            color: '#fff', gap: 15
         };
 
         // --- FUNÇÕES DE DESENHO ---
-
         function drawRect(x, y, w, h, color) {
             context.fillStyle = color;
             context.fillRect(x, y, w, h);
@@ -131,37 +143,28 @@
             context.font = `${size}px 'Press Start 2P'`;
             context.textAlign = align;
             context.fillText(text, x, y);
-            context.textAlign = 'left'; // Reseta o alinhamento
+            context.textAlign = 'left';
         }
         
         // --- LÓGICA DO JOGO ---
-
-        // Configura as posições e tamanhos iniciais com base no tamanho do canvas
         function initializePositions(resetScores = false) {
             player.x = 10;
             player.y = (canvas.height - player.height) / 2;
-            
-            // CORREÇÃO: Posição do computador corrigida para usar computer.width
             computer.x = canvas.width - computer.width - 10;
             computer.y = (canvas.height - computer.height) / 2;
-
             net.x = (canvas.width - net.width) / 2;
             
-            // Só reseta a bola, não a pontuação, a menos que seja um novo jogo
             if (resetScores) {
                 player.score = 0;
                 computer.score = 0;
             }
-
             resetBall();
         }
         
-        // Define as dimensões do canvas e reposiciona os elementos
         function resizeAndPosition() {
-            const container = document.getElementById('game-container');
             const aspectRatio = 4 / 3;
-            const containerWidth = container.clientWidth;
-            const containerHeight = container.clientHeight * 0.85; // Usa 85% da altura para dar espaço aos botões
+            const containerWidth = gameContainer.clientWidth;
+            const containerHeight = gameContainer.clientHeight * 0.85;
 
             if (containerWidth / containerHeight > aspectRatio) {
                 canvas.height = containerHeight;
@@ -170,7 +173,6 @@
                 canvas.width = containerWidth;
                 canvas.height = containerWidth / aspectRatio;
             }
-            // CORREÇÃO: Reposiciona todos os elementos após redimensionar
             initializePositions();
             renderAll(); 
         }
@@ -179,24 +181,21 @@
             ball.x = canvas.width / 2 - ball.width / 2;
             ball.y = canvas.height / 2 - ball.height / 2;
             
-            if (ball.speedX === 0) { // Na primeira inicialização
-                 ball.speedX = 6;
-            } else { // Inverte a direção horizontal após um ponto
+            if (ball.speedX !== 0) {
                 ball.speedX = -ball.speedX;
+            } else {
+                ball.speedX = 6;
             }
-
             ball.speedY = Math.random() > 0.5 ? 6 : -6;
         }
 
-        function collision(b, p) { // b: bola, p: raquete
-            return b.x < p.x + p.width &&
-                   b.x + b.width > p.x &&
-                   b.y < p.y + p.height &&
-                   b.y + b.height > p.y;
+        function collision(b, p) {
+            return b.x < p.x + p.width && b.x + b.width > p.x &&
+                   b.y < p.y + p.height && b.y + b.height > p.y;
         }
 
         function update() {
-            if (gameOver || isPaused) return;
+            if (!gameStarted || gameOver || isPaused) return;
 
             ball.x += ball.speedX;
             ball.y += ball.speedY;
@@ -249,7 +248,6 @@
 
             drawText(player.score, canvas.width / 4, canvas.height / 5, 45, '#fff');
             drawText(computer.score, 3 * canvas.width / 4, canvas.height / 5, 45, '#fff');
-
             drawRect(player.x, player.y, player.width, player.height, player.color);
             drawRect(computer.x, computer.y, computer.width, computer.height, computer.color);
             drawRect(ball.x, ball.y, ball.width, ball.height, ball.color);
@@ -267,10 +265,17 @@
 
         // --- CONTROLES E EVENTOS ---
 
+        startButton.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            gameContainer.style.display = 'flex';
+            gameStarted = true;
+            resizeAndPosition();
+            requestAnimationFrame(gameLoop);
+        });
+
         canvas.addEventListener('mousemove', (event) => {
             let rect = canvas.getBoundingClientRect();
             player.y = event.clientY - rect.top - player.height / 2;
-
             if (player.y < 0) player.y = 0;
             if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
         });
@@ -287,14 +292,14 @@
             restartButton.style.display = 'none';
             pauseButton.disabled = false;
             pauseButton.textContent = 'Pausar';
-            initializePositions(true); // Reinicia o jogo e a pontuação
+            initializePositions(true);
         });
         
-        window.addEventListener('resize', resizeAndPosition);
-
-        // --- INICIALIZAÇÃO ---
-        resizeAndPosition(); // Uma função para configurar tudo no início
-        requestAnimationFrame(gameLoop);
+        window.addEventListener('resize', () => {
+            if(gameStarted) {
+                resizeAndPosition();
+            }
+        });
 
     </script>
 </body>
