@@ -201,8 +201,7 @@
             ball.x = canvas.width / 2 - ball.width / 2;
             ball.y = canvas.height / 2 - ball.height / 2;
             
-            // CORREÇÃO: Velocidade base reduzida para telemóvel
-            const baseSpeed = (isMobileDevice ? 4.5 : 6) * speedFactor;
+            const baseSpeed = (isMobileDevice ? 8.27 : 6) * speedFactor;
             
             if (ball.speedX !== 0) {
                 ball.speedX = -Math.sign(ball.speedX) * baseSpeed;
@@ -225,6 +224,12 @@
 
             let computerLevel = 0.085;
             computer.y += (ball.y - (computer.y + computer.height / 2)) * computerLevel;
+            
+            if (computer.y < 0) {
+                computer.y = 0;
+            } else if (computer.y + computer.height > canvas.height) {
+                computer.y = canvas.height - computer.height;
+            }
 
             if (ball.y < 0 || ball.y + ball.height > canvas.height) {
                 ball.speedY = -ball.speedY;
@@ -233,12 +238,32 @@
             let paddle = (ball.x < canvas.width / 2) ? player : computer;
 
             if (collision(ball, paddle)) {
+                // Inverte a direção horizontal
                 ball.speedX = -ball.speedX;
+
+                // Aumenta a velocidade a cada rebatida
+                const maxSpeed = (isMobileDevice ? 16 : 12) * speedFactor;
+                if (Math.abs(ball.speedX) < maxSpeed) {
+                    ball.speedX *= 1.03; 
+                }
+                
+                if (paddle === player) {
+                    ball.x = player.x + player.width;
+                } else {
+                    ball.x = computer.x - ball.width;
+                }
+
                 let collidePoint = (ball.y + ball.height / 2) - (paddle.y + paddle.height / 2);
                 collidePoint = collidePoint / (paddle.height / 2);
                 
-                const verticalFactor = (isMobileDevice ? 5 : 7) * speedFactor;
+                // CORREÇÃO: Limite do ângulo removido para uma física mais autêntica
+                
+                const verticalFactor = 7 * speedFactor;
                 ball.speedY = collidePoint * verticalFactor;
+
+                if (Math.abs(ball.speedY) < 0.2) {
+                    ball.speedY = (Math.random() > 0.5 ? 2 : -2) * speedFactor;
+                }
             }
 
             if (ball.x < 0) {
@@ -291,16 +316,16 @@
         function setupControls() {
             isMobileDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
             
+            player.height = isMobileDevice ? 73 : 100;
+            computer.height = isMobileDevice ? 73 : 100;
+
             if (isMobileDevice) {
                 controlsInfo.textContent = "Arraste na tela para mover";
                 let lastTouchY = null;
 
-                // CORREÇÃO: Implementação de controlo por arrastar relativo
                 canvas.addEventListener('touchstart', (e) => {
                     e.preventDefault();
-                    if (e.touches.length > 0) {
-                        lastTouchY = e.touches[0].clientY;
-                    }
+                    if (e.touches.length > 0) { lastTouchY = e.touches[0].clientY; }
                 }, { passive: false });
 
                 canvas.addEventListener('touchmove', (e) => {
@@ -311,18 +336,13 @@
                         player.y += deltaY;
                         lastTouchY = currentTouchY;
 
-                        // Limites da raquete
                         if (player.y < 0) player.y = 0;
                         if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
                     }
                 }, { passive: false });
 
-                canvas.addEventListener('touchend', () => {
-                    lastTouchY = null;
-                });
-                canvas.addEventListener('touchcancel', () => {
-                    lastTouchY = null;
-                });
+                canvas.addEventListener('touchend', () => { lastTouchY = null; });
+                canvas.addEventListener('touchcancel', () => { lastTouchY = null; });
 
             } else {
                 controlsInfo.textContent = "Mova o mouse para controlar";
